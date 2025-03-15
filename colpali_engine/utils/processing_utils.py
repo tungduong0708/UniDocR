@@ -21,7 +21,7 @@ class BaseVisualRetrieverProcessor(ABC, ProcessorMixin):
         pass
 
     @abstractmethod
-    def process_queries(
+    def process_text(
         self,
         queries: List[str],
         max_length: int = 50,
