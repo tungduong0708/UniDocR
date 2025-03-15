@@ -76,9 +76,9 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
 
         return batch_doc
 
-    def process_queries(
+    def process_text(
         self,
-        queries: List[str],
+        text: List[str],
         max_length: int = 50,
         suffix: Optional[str] = None,
     ) -> BatchFeature:
@@ -91,7 +91,7 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
             suffix = self.query_augmentation_token * 10
         texts_query: List[str] = []
 
-        for query in queries:
+        for query in text:
             query = self.query_prefix + query + suffix
             texts_query.append(query)
 
