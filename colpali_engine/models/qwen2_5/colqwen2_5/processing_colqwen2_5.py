@@ -102,6 +102,41 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
         )
 
         return batch_query
+    
+    def process_documents(self, documents: List[Image.Image]) -> BatchFeature:
+        """
+        Process document.
+        """
+        texts_doc = [self.visual_prompt_prefix] * len(documents)
+        images = [document.convert("RGB") for document in documents]
+
+        batch_doc = self(
+            text=texts_doc,
+            images=images,
+            padding="longest",
+            return_tensors="pt",
+        )
+
+        print(f"batch_doc['pixel_values'] shape before splitting: {batch_doc['pixel_values'].shape}")  # Shape before split
+
+        # NOTE: The following adjustment ensures correct behavior with DDP on multiple GPUs.
+        offsets = batch_doc["image_grid_thw"][:, 1] * batch_doc["image_grid_thw"][:, 2]  # (batch_size,)
+        print(f"Offsets shape: {offsets.shape}, values: {offsets.tolist()}")  # Shape and values of offsets
+
+        # Split the pixel_values tensor into a list of tensors, one per image
+        pixel_values = list(torch.split(batch_doc["pixel_values"], offsets.tolist()))
+        print(f"Number of images after split: {len(pixel_values)}")
+        for i, pv in enumerate(pixel_values):
+            print(f"pixel_values[{i}] shape: {pv.shape}")  # Shape of each split tensor
+
+        # Pad the list of pixel_value tensors to the same length along the sequence dimension
+        batch_doc["pixel_values"] = torch.nn.utils.rnn.pad_sequence(
+            pixel_values, batch_first=True
+        )  # (batch_size, max_num_patches, pixel_values)
+
+        print(f"batch_doc['pixel_values'] shape after padding: {batch_doc['pixel_values'].shape}")  # Final shape
+
+        return batch_doc
 
     def score(
         self,
