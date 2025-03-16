@@ -129,7 +129,7 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
         
         return extracted_images
     
-    def image_to_patch_tensor(image):
+    def image_to_patch_tensor(self, image):
         """
         Converts a PIL image into a tensor formatted as a patch of size (1176,).
         The image is dynamically resized to (a, b) where a * b = 392.
