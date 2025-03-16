@@ -117,6 +117,8 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
             return_tensors="pt",
         )
 
+        print(batch_doc)
+
         print(f"batch_doc['pixel_values'] shape before splitting: {batch_doc['pixel_values'].shape}")  # Shape before split
 
         # NOTE: The following adjustment ensures correct behavior with DDP on multiple GPUs.
