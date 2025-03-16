@@ -1,6 +1,10 @@
 from typing import ClassVar, List, Optional, Tuple, Union
 
 import torch
+import math
+import torchvision.transforms as transforms
+import cv2
+import numpy as np
 from PIL import Image
 from transformers import BatchFeature
 from transformers.models.qwen2_vl import Qwen2VLProcessor
@@ -103,10 +107,62 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
 
         return batch_query
     
+    def extract_images_from_document(self, document: Image.Image) -> List[Image.Image]:
+        """
+        Extracts images from a document page using OpenCV.
+        This function detects and extracts potential image regions inside the document.
+        """
+        extracted_images = []
+
+        # Convert PIL image to OpenCV format
+        img_cv = np.array(document)
+        img_gray = cv2.cvtColor(img_cv, cv2.COLOR_RGB2GRAY)
+
+        # Use OpenCV to find potential images in the document
+        contours, _ = cv2.findContours(img_gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        for contour in contours:
+            x, y, w, h = cv2.boundingRect(contour)
+            if w > 30 and h > 30:  # Ignore very small detected objects
+                extracted_img = img_cv[y:y+h, x:x+w]  # Crop the image
+                extracted_images.append(Image.fromarray(extracted_img))  # Convert back to PIL
+        
+        return extracted_images
+    
+    def image_to_patch_tensor(image):
+        """
+        Converts a PIL image into a tensor formatted as a patch of size (1176,).
+        The image is dynamically resized to (a, b) where a * b = 392.
+        """
+        # Compute best (a, b) pair such that a * b = 392
+        a = int(math.sqrt(392))  # Start with sqrt(392) as a reasonable initial guess
+        while 392 % a != 0:  # Find the closest factor pair
+            a -= 1
+        b = 392 // a  # Compute corresponding b
+
+        # Define transformation
+        transform = transforms.Compose([
+            transforms.Resize((a, b)),  # Resize to (a, b)
+            transforms.ToTensor(),  # Convert to (C, H, W) tensor
+            transforms.Normalize((0.5,), (0.5,)),  # Normalize
+        ])
+
+        # Apply transformation
+        tensor_image = transform(image)  # Shape: (3, a, b)
+
+        # Flatten to shape (3 * a * b = 1176,)
+        tensor_patch = tensor_image.view(-1)
+
+        return tensor_patch  # Shape: (1176,)
+
+    
     def process_documents(self, documents: List[Image.Image]) -> BatchFeature:
         """
-        Process document.
+        Process documents by extracting text and images, converting them into tensor patches,
+        and ensuring they are properly batched.
         """
+        print(f"Total documents: {len(documents)}")
+
         texts_doc = [self.visual_prompt_prefix] * len(documents)
         images = [document.convert("RGB") for document in documents]
 
@@ -117,26 +173,38 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
             return_tensors="pt",
         )
 
-        print(batch_doc)
+        print(f"batch_doc keys: {batch_doc.keys()}")
+        print(f"batch_doc['image_grid_thw'] shape: {batch_doc['image_grid_thw'].shape}")
+        print(f"batch_doc['pixel_values'] shape: {batch_doc['pixel_values'].shape}")
 
-        print(f"batch_doc['pixel_values'] shape before splitting: {batch_doc['pixel_values'].shape}")  # Shape before split
-
-        # NOTE: The following adjustment ensures correct behavior with DDP on multiple GPUs.
+        # Compute offsets to split pixel_values into individual image tensors
         offsets = batch_doc["image_grid_thw"][:, 1] * batch_doc["image_grid_thw"][:, 2]  # (batch_size,)
-        print(f"Offsets shape: {offsets.shape}, values: {offsets.tolist()}")  # Shape and values of offsets
+        print(f"Offsets: {offsets}")
 
-        # Split the pixel_values tensor into a list of tensors, one per image
+        # Split pixel_values into individual image tensors
         pixel_values = list(torch.split(batch_doc["pixel_values"], offsets.tolist()))
-        print(f"Number of images after split: {len(pixel_values)}")
-        for i, pv in enumerate(pixel_values):
-            print(f"pixel_values[{i}] shape: {pv.shape}")  # Shape of each split tensor
+        print(f"Number of pixel_value tensors: {len(pixel_values)}")
 
-        # Pad the list of pixel_value tensors to the same length along the sequence dimension
+        for i in range(len(documents)):
+            extracted_images = self.extract_images_from_document(documents[i])
+            print(f"Document {i}: Extracted {len(extracted_images)} images")
+
+            for j, image in enumerate(extracted_images):
+                tensor_patch = self.image_to_patch_tensor(image.convert("RGB"))  # Shape: (1176,)
+                print(f"  Extracted Image {j}: tensor_patch shape {tensor_patch.shape}")
+
+                if len(pixel_values[i].shape) == 1:  # If it's a 1D tensor, reshape it
+                    pixel_values[i] = pixel_values[i].unsqueeze(0)
+
+                pixel_values[i] = torch.cat([pixel_values[i], tensor_patch.unsqueeze(0)], dim=0)
+                print(f"  Updated pixel_values[{i}] shape: {pixel_values[i].shape}")
+
+        # Pad the list of pixel_value tensors to the same length
         batch_doc["pixel_values"] = torch.nn.utils.rnn.pad_sequence(
             pixel_values, batch_first=True
         )  # (batch_size, max_num_patches, pixel_values)
 
-        print(f"batch_doc['pixel_values'] shape after padding: {batch_doc['pixel_values'].shape}")  # Final shape
+        print(f"Final batch_doc['pixel_values'] shape: {batch_doc['pixel_values'].shape}")
 
         return batch_doc
 
