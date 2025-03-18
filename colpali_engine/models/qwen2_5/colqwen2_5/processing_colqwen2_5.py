@@ -80,7 +80,7 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
 
         return batch_doc
 
-    def process_text(
+    def process_queries(
         self,
         text: List[str],
         max_length: int = 50,
@@ -248,3 +248,46 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
 
     def get_image_mask(self, batch_images: BatchFeature) -> torch.Tensor:
         return batch_images.input_ids == self.image_token_id
+
+    def embed_multimodal_query(
+        self,
+        text: str,
+        images: List[Image.Image],
+        mock_image_size: tuple = (224, 224)
+    ) -> torch.Tensor:
+        """
+        Embeds multimodal queries by fusing text and image representations [[9]].
+    
+        Args:
+            text: Text component of the query.
+            images: List of images in the query.
+            mock_image_size: Size for placeholder image during text processing [[2]].
+        
+        Returns:
+            Combined multimodal embedding tensor.
+        """
+        # Process text with mock white image for format consistency [[2]]
+        mock_image = Image.new('RGB', mock_image_size, color=(255, 255, 255))
+        text_inputs = self(
+            text=text,
+            images=[mock_image],
+            return_tensors="pt",
+            padding="longest"
+        )
+    
+        # Process images with visual prompt prefix [[6]]
+        image_inputs = self.process_images(images)
+    
+        # Generate embeddings with VLM
+        with torch.no_grad():
+            text_outputs = self.model(**text_inputs)
+            image_outputs = self.model(**image_inputs)
+    
+        # Late fusion via concatenation [[1]][[6]]
+        text_emb = text_outputs.last_hidden_state.mean(dim=1).squeeze(0)  # Shape: [embed_dim]
+        image_emb = image_outputs.last_hidden_state.mean(dim=[0, 1])      # Shape: [embed_dim]
+    
+        # Concatenate along the feature dimension [[1]][[6]]
+        combined_emb = torch.cat([text_emb, image_emb], dim=0)  # Shape: [2 * embed_dim]
+    
+        return combined_emb
