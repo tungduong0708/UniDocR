@@ -279,15 +279,28 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
         image_inputs = self.process_images(images)
     
         # Generate embeddings with VLM
-        with torch.no_grad():
-            text_outputs = self.model(**text_inputs)
-            image_outputs = self.model(**image_inputs)
+        # with torch.no_grad():
+        #     text_outputs = self.model(**text_inputs)
+        #     image_outputs = self.model(**image_inputs)
     
-        # Late fusion via concatenation [[1]][[6]]
-        text_emb = text_outputs.last_hidden_state.mean(dim=1).squeeze(0)  # Shape: [embed_dim]
-        image_emb = image_outputs.last_hidden_state.mean(dim=[0, 1])      # Shape: [embed_dim]
+        # # Late fusion via concatenation [[1]][[6]]
+        # text_emb = text_outputs.last_hidden_state.mean(dim=1).squeeze(0)  # Shape: [embed_dim]
+        # image_emb = image_outputs.last_hidden_state.mean(dim=[0, 1])      # Shape: [embed_dim]
     
-        # Concatenate along the feature dimension [[1]][[6]]
-        combined_emb = torch.cat([text_emb, image_emb], dim=0)  # Shape: [2 * embed_dim]
+        # # Concatenate along the feature dimension [[1]][[6]]
+        # combined_emb = torch.cat([text_emb, image_emb], dim=0)  # Shape: [2 * embed_dim]
     
-        return combined_emb
+        return text_inputs, image_inputs  # Return the processed inputs for further use
+    
+    def concatenate_embeddings(self, text_emb: torch.Tensor, image_emb: torch.Tensor) -> torch.Tensor:
+        """
+        Concatenate text and image embeddings along the feature dimension.
+    
+        Args:
+            text_emb: Text embedding tensor.
+            image_emb: Image embedding tensor.
+        
+        Returns:
+            Concatenated embedding tensor.
+        """
+        return torch.cat([text_emb, image_emb], dim=0)
