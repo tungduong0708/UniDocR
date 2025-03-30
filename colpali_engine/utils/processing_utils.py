@@ -21,12 +21,31 @@ class BaseVisualRetrieverProcessor(ABC, ProcessorMixin):
         pass
 
     @abstractmethod
-    def process_text(
+    def process_queries(
         self,
         queries: List[str],
         max_length: int = 50,
         suffix: Optional[str] = None,
     ) -> Union[BatchFeature, BatchEncoding]:
+        pass
+
+    @abstractmethod
+    def process_documents(
+        self,
+        documents: List[Image.Image]
+    ) -> Union[BatchFeature, BatchEncoding]:
+        pass
+
+    @abstractmethod
+    def embed_multimodal_query(
+        self,
+        text: str,
+        images: List[Image.Image],
+        mock_image_size: tuple = (224, 224)
+    ) -> torch.Tensor:
+        """
+        Embed a multimodal query consisting of text and images.
+        """
         pass
 
     @abstractmethod
