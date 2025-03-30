@@ -267,16 +267,35 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
             Combined multimodal embedding tensor.
         """
         # Process text with mock white image for format consistency [[2]]
-        mock_image = Image.new('RGB', mock_image_size, color=(255, 255, 255))
         text_inputs = self(
             text=text,
-            images=[mock_image],
+            # images=[mock_image],
             return_tensors="pt",
             padding="longest"
         )
     
         # Process images with visual prompt prefix [[6]]
-        image_inputs = self.process_images(images)
+        images = [image.convert("RGB") for image in images]
+
+        image_inputs = self(
+            images=images,
+            padding="longest",
+            return_tensors="pt",
+        )
+
+        # NOTE: The following adjustment ensures correct behavior with DDP on multiple GPUs.
+        offsets = image_inputs["image_grid_thw"][:, 1] * image_inputs["image_grid_thw"][:, 2]  # (batch_size,)
+
+        # Split the pixel_values tensor into a list of tensors, one per image
+        pixel_values = list(
+            torch.split(image_inputs["pixel_values"], offsets.tolist())
+        )  # [(num_patches_image_0, pixel_values), ..., (num_patches_image_n, pixel_values)]
+
+        # Pad the list of pixel_value tensors to the same length along the sequence dimension
+        image_inputs["pixel_values"] = torch.nn.utils.rnn.pad_sequence(
+            pixel_values, batch_first=True
+        )  # (batch_size, max_num_patches, pixel_values)
+
     
         # Generate embeddings with VLM
         # with torch.no_grad():
