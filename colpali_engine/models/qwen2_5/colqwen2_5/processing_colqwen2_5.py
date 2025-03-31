@@ -270,7 +270,7 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
         mock_image = Image.new('RGB', mock_image_size, color=(255, 255, 255))
         text_inputs = self(
             text=text,
-            images=[mock_image],
+            # images=[mock_image],
             return_tensors="pt",
             padding="longest"
         )
