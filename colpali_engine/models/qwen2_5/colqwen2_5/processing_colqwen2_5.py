@@ -173,38 +173,38 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
             return_tensors="pt",
         )
 
-        # print(f"batch_doc keys: {batch_doc.keys()}")
-        # print(f"batch_doc['image_grid_thw'] shape: {batch_doc['image_grid_thw'].shape}")
-        # print(f"batch_doc['pixel_values'] shape: {batch_doc['pixel_values'].shape}")
+        print(f"batch_doc keys: {batch_doc.keys()}")
+        print(f"batch_doc['image_grid_thw'] shape: {batch_doc['image_grid_thw'].shape}")
+        print(f"batch_doc['pixel_values'] shape: {batch_doc['pixel_values'].shape}")
 
         # Compute offsets to split pixel_values into individual image tensors
         offsets = batch_doc["image_grid_thw"][:, 1] * batch_doc["image_grid_thw"][:, 2]  # (batch_size,)
-        # print(f"Offsets: {offsets}")
+        print(f"Offsets: {offsets}")
 
         # Split pixel_values into individual image tensors
         pixel_values = list(torch.split(batch_doc["pixel_values"], offsets.tolist()))
-        # print(f"Number of pixel_value tensors: {len(pixel_values)}")
+        print(f"Number of pixel_value tensors: {len(pixel_values)}")
 
         for i in range(len(documents)):
             extracted_images = self.extract_images_from_document(documents[i])
-            # print(f"Document {i}: Extracted {len(extracted_images)} images")
+            print(f"Document {i}: Extracted {len(extracted_images)} images")
 
             for j, image in enumerate(extracted_images):
                 tensor_patch = self.image_to_patch_tensor(image.convert("RGB"))  # Shape: (1176,)
-                # print(f"  Extracted Image {j}: tensor_patch shape {tensor_patch.shape}")
+                print(f"  Extracted Image {j}: tensor_patch shape {tensor_patch.shape}")
 
                 if len(pixel_values[i].shape) == 1:  # If it's a 1D tensor, reshape it
                     pixel_values[i] = pixel_values[i].unsqueeze(0)
 
                 pixel_values[i] = torch.cat([pixel_values[i], tensor_patch.unsqueeze(0)], dim=0)
-                # print(f"  Updated pixel_values[{i}] shape: {pixel_values[i].shape}")
+                print(f"  Updated pixel_values[{i}] shape: {pixel_values[i].shape}")
 
         # Pad the list of pixel_value tensors to the same length
         batch_doc["pixel_values"] = torch.nn.utils.rnn.pad_sequence(
             pixel_values, batch_first=True
         )  # (batch_size, max_num_patches, pixel_values)
 
-        # print(f"Final batch_doc['pixel_values'] shape: {batch_doc['pixel_values'].shape}")
+        print(f"Final batch_doc['pixel_values'] shape: {batch_doc['pixel_values'].shape}")
 
         return batch_doc
 
