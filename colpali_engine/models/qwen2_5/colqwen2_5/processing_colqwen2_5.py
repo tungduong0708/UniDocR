@@ -189,9 +189,9 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
             print(f"Processing extracted images for document {i}...")
             extracted_images = self.extract_images_from_document(documents[i])
             print(f"Extracted {len(extracted_images)} images from document {i}")
-
+            texts_extracted = [self.visual_prompt_prefix] * len(extracted_images)
             batch_extracted = self(
-                text=texts_doc,
+                text=texts_extracted,
                 images=extracted_images,
                 padding="longest",
                 return_tensors="pt",
