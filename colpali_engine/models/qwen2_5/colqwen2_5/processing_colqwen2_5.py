@@ -198,6 +198,7 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
             )
 
             print(f"Batch extracted keys: {batch_extracted.keys()}")
+            print(f"Image grid shape: {batch_extracted['image_grid_thw'].shape}")
             
             offsets_extracted = batch_extracted["image_grid_thw"][:, 1] * batch_extracted["image_grid_thw"][:, 2]
             print(f"Offsets for extracted images: {offsets_extracted}")
@@ -205,7 +206,11 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
             pixel_values_extracted = list(torch.split(batch_extracted["pixel_values"], offsets_extracted.tolist()))
             print(f"Number of extracted pixel values splits: {len(pixel_values_extracted)}")
 
-            pixel_values[i] = torch.cat([pixel_values[i], pixel_values_extracted], dim=0)
+            print(pixel_values[i].shape)
+            for j in range(len(extracted_images)):
+                print(f"Processing extracted image {j} for document {i}...")
+                print(pixel_values_extracted[j].shape)
+                pixel_values[i] = torch.cat([pixel_values[i], pixel_values_extracted[j]], dim=0)
 
         print("Padding pixel values...")
         # Pad the list of pixel_value tensors to the same length
