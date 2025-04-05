@@ -173,7 +173,7 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
         return tensor_patch  # Shape: (1176,)
 
     
-    def process_documents(self, document: Image.Image) -> BatchFeature:
+    def process_documents(self, document: Image.Image) -> List[BatchFeature]:
         """
         Process documents by extracting text and images, converting them into tensor patches,
         and ensuring they are properly batched.
@@ -184,25 +184,29 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
         extracted_images = self.extract_images_from_document(document)
         images.extend(extracted_images)
 
-        texts_doc = [self.visual_prompt_prefix] * len(images)
+        texts_doc = [self.visual_prompt_prefix]
         images = [image.convert("RGB") for image in images]
+        
+        batches = []
+        for image in images:
+            batch = self(
+                text=texts_doc,
+                images=image,
+                padding="longest",
+                return_tensors="pt",
+            )
 
-        batch_doc = self(
-            text=texts_doc,
-            images=images,
-            padding="longest",
-            return_tensors="pt",
-        )
+            offsets = batch["image_grid_thw"][:, 1] * batch["image_grid_thw"][:, 2]  # (batch_size,)
+            pixel_values = list(torch.split(batch["pixel_values"], offsets.tolist()))
 
-        offsets = batch_doc["image_grid_thw"][:, 1] * batch_doc["image_grid_thw"][:, 2]  # (batch_size,)
-        pixel_values = list(torch.split(batch_doc["pixel_values"], offsets.tolist()))
+            # Pad the list of pixel_value tensors to the same length
+            batch["pixel_values"] = torch.nn.utils.rnn.pad_sequence(
+                pixel_values, batch_first=True
+            )  # (batch_size, max_num_patches, pixel_values)
 
-        # Pad the list of pixel_value tensors to the same length
-        batch_doc["pixel_values"] = torch.nn.utils.rnn.pad_sequence(
-            pixel_values, batch_first=True
-        )  # (batch_size, max_num_patches, pixel_values)
+            batches.append(batch)
 
-        return batch_doc  # Return the processed inputs for further use
+        return batches  # Return the processed inputs for further use
 
     def score(
         self,

@@ -40,7 +40,7 @@ class BaseVisualRetrieverProcessor(ABC, ProcessorMixin):
     def process_documents(
         self,
         documents: List[Image.Image]
-    ) -> Union[BatchFeature, BatchEncoding]:
+    ) -> Union[BatchFeature, BatchEncoding, List[BatchFeature]]:
         pass
 
     @abstractmethod
