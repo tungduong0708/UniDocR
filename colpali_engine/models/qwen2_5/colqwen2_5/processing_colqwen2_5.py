@@ -156,17 +156,20 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
         return tensor_patch  # Shape: (1176,)
 
     
-    def process_documents(self, documents: List[Image.Image]) -> BatchFeature:
+    def process_documents(self, document: Image.Image) -> BatchFeature:
         """
         Process documents by extracting text and images, converting them into tensor patches,
         and ensuring they are properly batched.
         """
-        print(f"Total documents: {len(documents)}")
 
-        texts_doc = [self.visual_prompt_prefix] * len(documents)
-        images = [document.convert("RGB") for document in documents]
+        images = [document]
 
-        print("Processing batch of original documents...")
+        extracted_images = self.extract_images_from_document(document)
+        images.extend(extracted_images)
+
+        texts_doc = [self.visual_prompt_prefix] * len(images)
+        images = [image.convert("RGB") for image in images]
+
         batch_doc = self(
             text=texts_doc,
             images=images,
@@ -174,52 +177,15 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
             return_tensors="pt",
         )
 
-        print(f"Batch document keys: {batch_doc.keys()}")
-        print(f"Image grid shape: {batch_doc['image_grid_thw'].shape}")
-        
-        # Compute offsets to split pixel_values into individual image tensors
         offsets = batch_doc["image_grid_thw"][:, 1] * batch_doc["image_grid_thw"][:, 2]  # (batch_size,)
-        print(f"Offsets: {offsets}")
-
-        # Split pixel_values into individual image tensors
         pixel_values = list(torch.split(batch_doc["pixel_values"], offsets.tolist()))
-        print(f"Number of pixel values splits: {len(pixel_values)}")
 
-        for i in range(len(documents)):
-            print(f"Processing extracted images for document {i}...")
-            extracted_images = self.extract_images_from_document(documents[i])
-            print(f"Extracted {len(extracted_images)} images from document {i}")
-            texts_extracted = [self.visual_prompt_prefix] * len(extracted_images)
-            batch_extracted = self(
-                text=texts_extracted,
-                images=extracted_images,
-                padding="longest",
-                return_tensors="pt",
-            )
-
-            print(f"Batch extracted keys: {batch_extracted.keys()}")
-            print(f"Image grid shape: {batch_extracted['image_grid_thw'].shape}")
-            
-            offsets_extracted = batch_extracted["image_grid_thw"][:, 1] * batch_extracted["image_grid_thw"][:, 2]
-            print(f"Offsets for extracted images: {offsets_extracted}")
-
-            pixel_values_extracted = list(torch.split(batch_extracted["pixel_values"], offsets_extracted.tolist()))
-            print(f"Number of extracted pixel values splits: {len(pixel_values_extracted)}")
-
-            print(pixel_values[i].shape)
-            for j in range(len(extracted_images)):
-                print(f"Processing extracted image {j} for document {i}...")
-                print(pixel_values_extracted[j].shape)
-                pixel_values[i] = torch.cat([pixel_values[i], pixel_values_extracted[j]], dim=0)
-
-        print("Padding pixel values...")
         # Pad the list of pixel_value tensors to the same length
         batch_doc["pixel_values"] = torch.nn.utils.rnn.pad_sequence(
             pixel_values, batch_first=True
         )  # (batch_size, max_num_patches, pixel_values)
 
-        print("Processing complete!")
-        return batch_doc
+        return batch_doc  # Return the processed inputs for further use
 
     def score(
         self,
