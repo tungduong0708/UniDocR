@@ -114,19 +114,39 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
         """
         extracted_images = []
 
-        # Convert PIL image to OpenCV format
-        img_cv = np.array(document)
-        img_gray = cv2.cvtColor(img_cv, cv2.COLOR_RGB2GRAY)
+        cv_img = np.array(document)
 
-        # Use OpenCV to find potential images in the document
-        contours, _ = cv2.findContours(img_gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        for contour in contours:
-            x, y, w, h = cv2.boundingRect(contour)
-            if w > 30 and h > 30:  # Ignore very small detected objects
-                extracted_img = img_cv[y:y+h, x:x+w]  # Crop the image
-                extracted_images.append(Image.fromarray(extracted_img))  # Convert back to PIL
-        
+        # Convert to grayscale
+        gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+
+        # Apply binary thresholding to separate text and objects
+        _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
+
+        # Find contours
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Filter contours to find the biggest non-text object (the image inside)
+        image_contours = []
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            aspect_ratio = w / float(h)
+
+            # Skip small regions and extreme aspect ratios (text boxes)
+            if w * h > 5000 and 0.5 < aspect_ratio < 2:
+                image_contours.append((x, y, w, h))
+
+        # Display all valid cropped images
+        if image_contours:
+            if len(image_contours) == 1:
+                axes = [axes]  # Make it iterable
+
+            for ax, (x, y, w, h) in zip(axes, image_contours):
+                extracted_img = cv_img[y:y+h, x:x+w]
+                pil_img = Image.fromarray(extracted_img)
+                extracted_images.append(pil_img)
+        else:
+            print("No image detected!")
+
         return extracted_images
     
     def image_to_patch_tensor(self, image):
