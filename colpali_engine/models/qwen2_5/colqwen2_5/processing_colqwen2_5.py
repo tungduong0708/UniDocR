@@ -182,14 +182,14 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
         extracted_images = self.extract_images_from_document(document)
         images.extend(extracted_images)
 
-        texts_doc = [self.visual_prompt_prefix]
         images = [image.convert("RGB") for image in images]
         
         batches = []
         for image in images:
+            # texts_doc = [self.visual_prompt_prefix]
             batch = self(
-                text=texts_doc,
-                images=[image],
+                text=self.visual_prompt_prefix,
+                images=image,
                 padding="longest",
                 return_tensors="pt",
             )
