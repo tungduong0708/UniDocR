@@ -178,9 +178,10 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
         Process documents by extracting text and images, converting them into tensor patches,
         and ensuring they are properly batched.
         """
+        if document.mode != "RGB":
+            document = document.convert("RGB")
 
         images = [document]
-
         extracted_images = self.extract_images_from_document(document)
         images.extend(extracted_images)
 
