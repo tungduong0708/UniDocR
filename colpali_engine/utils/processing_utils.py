@@ -30,6 +30,13 @@ class BaseVisualRetrieverProcessor(ABC, ProcessorMixin):
         pass
 
     @abstractmethod
+    def extract_images_from_document(self, document: Image.Image) -> List[Image.Image]:
+        """
+        Extract images from a document. The document is expected to be a PIL image.
+        """
+        pass
+
+    @abstractmethod
     def process_documents(
         self,
         documents: List[Image.Image]
