@@ -137,9 +137,6 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
 
         # Display all valid cropped images
         if image_contours:
-            if len(image_contours) == 1:
-                axes = [axes]  # Make it iterable
-
             for (x, y, w, h) in image_contours:
                 extracted_img = cv_img[y:y+h, x:x+w]
                 pil_img = Image.fromarray(extracted_img)
