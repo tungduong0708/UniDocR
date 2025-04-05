@@ -189,7 +189,7 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
         for image in images:
             batch = self(
                 text=texts_doc,
-                images=image,
+                images=[image],
                 padding="longest",
                 return_tensors="pt",
             )
