@@ -140,7 +140,7 @@ class ColQwen2_5_Processor(BaseVisualRetrieverProcessor, Qwen2VLProcessor):  # n
             if len(image_contours) == 1:
                 axes = [axes]  # Make it iterable
 
-            for ax, (x, y, w, h) in zip(axes, image_contours):
+            for (x, y, w, h) in image_contours:
                 extracted_img = cv_img[y:y+h, x:x+w]
                 pil_img = Image.fromarray(extracted_img)
                 extracted_images.append(pil_img)
